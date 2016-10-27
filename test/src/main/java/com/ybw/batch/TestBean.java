@@ -10,6 +10,7 @@ public class TestBean implements Serializable{
 
     public TestBean() {
 
+    	
     }
 
     public TestBean(String day, String msisdn,String remark) {
