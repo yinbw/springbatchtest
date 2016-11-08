@@ -3,7 +3,7 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xmlns:batch="http://www.springframework.org/schema/batch"
 	xsi:schemaLocation="
-	http://www.springframework.org/schema/batch http://www.springframework.org/schema/batch/spring-batch-2.1.xsd
+	http://www.springframework.org/schema/batch http://www.springframework.org/schema/batch/spring-batch.xsd
 	http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
 
 	<description>Example job to get you started. It provides a skeleton for a typical batch application.</description>
@@ -11,7 +11,7 @@
 	<batch:job id="job1">
 		<batch:step id="step1"  >			
 			<batch:tasklet transaction-manager="transactionManager" start-limit="100" >
-				<batch:chunk reader="csvItemReader" writer="writer" processor="csvItemProcessor" commit-interval="1" />
+				<batch:chunk reader="csvItemReader" writer="csvItemWriter" processor="csvItemProcessor" commit-interval="1" />
 			</batch:tasklet>
 		</batch:step>
 	</batch:job> 
@@ -47,5 +47,21 @@
             </list>
         </property>
     </bean>
+    
+    <!-- 写CSV文件 -->  
+    <bean id="csvItemWriter" class="org.springframework.batch.item.file.FlatFileItemWriter" scope="step">  
+        <property name="resource" value="file:src/outputFile.csv"/>  
+        <property name="lineAggregator">  
+            <bean class="org.springframework.batch.item.file.transform.DelimitedLineAggregator">  
+                <property name="delimiter" value=","></property>  
+                <property name="fieldExtractor">  
+                    <bean  
+                        class="org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor">  
+                        <property name="names" value="day,msisdn"></property>  
+                    </bean>  
+                </property>  
+            </bean>  
+        </property>  
+    </bean> 
 
 </beans>

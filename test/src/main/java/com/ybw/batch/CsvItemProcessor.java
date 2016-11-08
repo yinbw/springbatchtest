@@ -22,9 +22,7 @@ public class CsvItemProcessor implements ItemProcessor<TestBean, TestBean> {
      * @exception Exception
      *                处理是发生的任何异常。
      */
-    @Override
     public TestBean process(TestBean student) throws Exception {
-    	log.info(student.toString());
         return student;
     }
 }
