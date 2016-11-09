@@ -7,14 +7,26 @@
 	http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
 
 	<description>Example job to get you started. It provides a skeleton for a typical batch application.</description>
+	
+	<bean id="student" class="com.ybw.batch.TestBean" scope="prototype"></bean>
  	
-	<batch:job id="job1">
+<!-- 	<batch:job id="job1">
 		<batch:step id="step1"  >			
 			<batch:tasklet transaction-manager="transactionManager" start-limit="100" >
-				<batch:chunk reader="csvItemReader" writer="csvItemWriter" processor="csvItemProcessor" commit-interval="1" />
+				<batch:chunk reader="dataBaseReader" writer="oralceWriter" processor="csvItemProcessor" commit-interval="10000" />
 			</batch:tasklet>
 		</batch:step>
 	</batch:job> 
+	 -->
+	
+	<bean id="dataBaseReader" class="org.springframework.batch.item.database.JdbcCursorItemReader">
+		<property name="dataSource" ref="dataSource"/>
+		<property name="sql" value="select a.id,a.log_date from t_url_log_history a "/>
+		<property name="verifyCursorPosition" value="${batch.verify.cursor.position}"/>
+		<property name="rowMapper">
+			<bean class="com.ybw.batch.UrlLogRowMapper"/>
+		</property>
+	</bean>
 	
 	<!-- 读取csv文件 -->
     <bean id="csvItemReader"
@@ -33,8 +45,6 @@
             </bean>
         </property>
     </bean>
-
-    <bean id="student" class="com.ybw.batch.TestBean"></bean>
 
     <!-- lineTokenizer -->
     <bean id="lineTokenizer" class="org.springframework.batch.item.file.transform.DelimitedLineTokenizer">
@@ -63,5 +73,92 @@
             </bean>  
         </property>  
     </bean> 
+    
+   <bean id="dataSourceMysql" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+        <property name="driverClassName" value="com.mysql.jdbc.Driver"/>
+        <property name="url" value="jdbc:mysql://localhost:3306/shopxx"/>
+        <property name="username" value="root"/>
+        <property name="password" value="root"/>
+    </bean>
+    
+    <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">  
+        <property name="dataSource" ref="dataSource" />  
+    </bean>  
+    
+    <bean id="oralceWriter" class="com.ybw.batch.OracleItemWriter" >
+        <property name="dataSource" ref="dataSource" />
+    </bean>  
+    
+     <bean id="mysqlItemWriter"
+	class="org.springframework.batch.item.database.JdbcBatchItemWriter">
+	<property name="dataSource" ref="dataSource" />
+	<property name="sql">
+	  <value>
+            <![CDATA[
+            	insert into person(id,name)
+			values (:id, :name)
+            ]]>
+	  </value>
+	</property>
+	<!-- It will take care matching between object property and sql name parameter -->
+	<property name="itemSqlParameterSourceProvider">
+		<bean
+		class="org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider" />
+	</property>
+  </bean>
+  
+  
+  <!-- partitioner job -->
+	<job id="partitionJob" xmlns="http://www.springframework.org/schema/batch">
+	    
+	    <!-- master step, 10 threads (grid-size)  -->
+		<step id="masterStep">
+			<partition step="slave" partitioner="rangePartitioner">
+				<handler grid-size="${batch.grid.size}" task-executor="taskExecutor" />
+			</partition>
+		</step>
+		
+	</job>
+	
+	<!-- Jobs to run -->
+	<step id="slave" xmlns="http://www.springframework.org/schema/batch">
+		<tasklet>
+			<chunk reader="pagingItemReader" writer="oralceWriter" commit-interval="10000" />
+		</tasklet>
+	</step>
+	
+	<bean id="rangePartitioner" class="com.ybw.batch.RangePartitioner">
+		<property name="dataSource" ref="dataSource" />
+		<property name="table" value="t_url_log_history" />
+		<property name="column" value="ID" />
+	</bean>
+	
+	<bean id="taskExecutor" class="org.springframework.core.task.SimpleAsyncTaskExecutor" />
+	
+	<bean id="pagingItemReader"
+		class="org.springframework.batch.item.database.JdbcPagingItemReader"
+		scope="step">
+		<property name="dataSource" ref="dataSource" />
+		<property name="queryProvider">
+			<bean class="org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean">
+				<property name="dataSource" ref="dataSource" />
+				<property name="selectClause" value="select id,log_date " />
+				<property name="fromClause" value="from  t_url_log_history " />
+				<property name="whereClause" value="where id &gt;= :minId and id &lt;= :maxId" />
+				<property name="sortKey" value="id" />
+			</bean>
+		</property>
+		<!-- Inject via the ExecutionContext in rangePartitioner -->
+		<property name="parameterValues">
+			<map>
+				<entry key="minId" value="#{stepExecutionContext[minValue]}"/>
+				<entry key="maxId" value="#{stepExecutionContext[maxValue]}"/>
+			</map>
+		</property>
+		<property name="pageSize" value="10000" />
+		<property name="rowMapper">
+			<bean class="com.ybw.batch.UrlLogRowMapper" />
+		</property>
+	</bean>
 
 </beans>
